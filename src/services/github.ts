@@ -1,5 +1,6 @@
 import { Octokit } from "octokit";
 import fs from "fs";
+import { execa } from "execa";
 
 class GitHubService {
   private readonly octokit: Octokit;
@@ -171,6 +172,115 @@ class GitHubService {
     return response;
   }
 
+  public async initializeBranch(
+    repositoryName: string,
+    branchName: string,
+    targetFolderPath: string,
+    base: string
+  ): Promise<any> {
+    const repo = await this.getRepository(repositoryName);
+    const branch = await this.createBranch(branchName, repo.name, base);
+
+    await this.initGitRepository(targetFolderPath, repo, branch);
+    await this.configureRemoteRepository(targetFolderPath, repo.name);
+    await this.fetchRepository(targetFolderPath);
+    await this.checkoutBranch(targetFolderPath, branchName);
+    await this.addFilesToGit(targetFolderPath);
+    await this.commitAllFiles(targetFolderPath);
+    await this.pushAllFiles(targetFolderPath, branchName);
+  }
+
+  private async checkoutBranch(targetFolderPath: string, branchName: string) {
+    try {
+      const result = await execa(
+        "git",
+        ["checkout", "-t", `origin/${branchName}`],
+        { cwd: targetFolderPath }
+      );
+      console.log(result.stdout);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  private async fetchRepository(targetFolderPath: string) {
+    try {
+      const result = await execa("git", ["fetch", "origin"], {
+        cwd: targetFolderPath,
+      });
+      console.log(result.stdout);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  private async configureRemoteRepository(
+    targetFolderPath: string,
+    repoName: string
+  ) {
+    try {
+      const result = await execa(
+        "git",
+        [
+          "remote",
+          "add",
+          "origin",
+          `https://github.com/${this.owner}/${repoName}.git`,
+        ],
+        { cwd: targetFolderPath }
+      );
+      console.log(result.stdout);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  private async initGitRepository(
+    targetFolderPath: string,
+    repo: any,
+    branch: any
+  ) {
+    try {
+      const result = await execa("git", ["init"], { cwd: targetFolderPath });
+      console.log(result.stdout);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  private async addFilesToGit(targetFolderPath: string) {
+    try {
+      const result = await execa("git", ["add", "."], {
+        cwd: targetFolderPath,
+      });
+      console.log(result.stdout);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  private async pushAllFiles(targetFolderPath: string, branchName: string) {
+    try {
+      const result = await execa("git", ["push", "-u", "origin", branchName], {
+        cwd: targetFolderPath,
+      });
+
+      console.log(result.stdout);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  private async commitAllFiles(targetFolderPath: string) {
+    try {
+      await execa("git", ["commit", "-m", "Project Added To Branch"], {
+        cwd: targetFolderPath,
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
   private async deleteTargetBranch(repositoryName: string, branchName: string) {
     const repo = await this.getRepository(repositoryName);
     const url = `/repos/${repo.owner.login}/${repo.name}/git/refs/heads/${branchName}`;
@@ -188,10 +298,10 @@ class GitHubService {
     const childProcess = require("child_process");
     const repoUrl = repo.clone_url;
 
-    if (fs.existsSync(targetFolderPath)) {
-      fs.rmdirSync(targetFolderPath, { recursive: true });
-      console.log(`Deleted existing directory ${targetFolderPath}`);
-    }
+    // if (fs.existsSync(targetFolderPath)) {
+    //   fs.rmdirSync(targetFolderPath, { recursive: true });
+    //   console.log(`Deleted existing directory ${targetFolderPath}`);
+    // }
 
     childProcess.exec(
       `git clone ${repoUrl} ${targetFolderPath}`,
